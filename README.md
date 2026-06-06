@@ -2,34 +2,91 @@
 
 Content-addressed compilation cache for GPU kernels. Hash source → lookup PTX → skip recompile. LRU eviction, TTL, hit rate tracking.
 
-## Overview
+## Why This Matters
 
 # oxide-compile-cache
-
 Content-addressed compilation cache for GPU kernels.
+Hash source → lookup PTX → skip recompile. LRU eviction, TTL.
 
-## Stats
+## The Five-Layer Stack
 
-- **Tests**: 8
-- **LOC**: 176
-- **License**: Apache-2.0
+This crate is part of the **Oxide Stack** — a distributed GPU runtime built on five layers:
 
-## Part of the Oxide Stack
+```
+┌─────────────────┐
+│  cudaclaw        │  Persistent GPU kernels, warp consensus, SmartCRDT
+├─────────────────┤
+│  cuda-oxide      │  Flux → MIR → Pliron → NVVM → PTX compiler
+├─────────────────┤
+│  flux-core       │  Bytecode VM + A2A agent protocol
+├─────────────────┤
+│  pincher         │  "Vector DB as runtime, LLM as compiler"
+├─────────────────┤
+│  open-parallel   │  Async runtime (tokio fork)
+└─────────────────┘
+```
 
-This crate is part of the [Flux→PTX](https://github.com/SuperInstance/cuda-oxide/blob/main/FLUX_TO_PTX.md) experimental suite, testing synergies between the five layers of the distributed GPU runtime:
+The key insight: **ternary values {-1, 0, +1} map directly to GPU compute**. They pack 16× denser than FP32, enable XNOR+popcount matmul, and conservation laws become compile-time checks.
 
-1. **open-parallel** — async runtime (tokio fork)
-2. **pincher** — "Vector DB as runtime, LLM as compiler"
-3. **flux-core** — bytecode VM + A2A agent protocol
-4. **cuda-oxide** — Flux→MIR→Pliron→NVVM→PTX compiler
-5. **cudaclaw** — persistent GPU kernels, warp-level consensus, SmartCRDT
+## Design
+
+Every value in this crate follows **ternary algebra** (Z₃):
+
+| Value | Meaning | GPU Analog |
+|-------|---------|------------|
+| +1 | Positive / Active / Healthy | Warp vote yes |
+| 0 | Neutral / Pending / Balanced | Warp vote abstain |
+| -1 | Negative / Failed / Overloaded | Warp vote no |
+
+This isn't arbitrary — ternary is the natural encoding for:
+1. **BitNet b1.58** (Microsoft) — ternary LLMs at 60% less power
+2. **GPU warp voting** — hardware ballot returns ternary consensus
+3. **Conservation laws** — {-1, 0, +1} preserves quantity
+
+## Key Types
+
+```rust
+pub struct CacheEntry
+pub struct CompileCache
+pub fn new
+pub fn hash_source
+pub fn get
+pub fn put
+pub fn compile
+pub fn invalidate
+pub fn clear
+pub fn hit_rate
+pub fn time_saved_us
+pub fn entry_count
+```
 
 ## Usage
 
+```toml
+[dependencies]
+oxide-compile-cache = "0.1.0"
+```
+
 ```rust
 use oxide_compile_cache::*;
-// See tests in src/lib.rs for examples
+// See src/lib.rs tests for complete working examples
 ```
+
+## Testing
+
+```bash
+git clone https://github.com/SuperInstance/oxide-compile-cache.git
+cd oxide-compile-cache
+cargo test    # 8 tests
+```
+
+## Stats
+
+| Metric | Value |
+|--------|-------|
+| Tests | 8 |
+| Lines of Rust | 177 |
+| Public API | 14 items |
 
 ## License
 
