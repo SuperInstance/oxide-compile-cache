@@ -1,0 +1,7 @@
+[package]
+name = "oxide-compile-cache"
+version = "0.1.0"
+edition = "2021"
+description = "Content-addressed compilation cache for GPU kernels. Hash source → lookup PTX → skip recompile. LRU eviction, TTL, hit rate tracking."
+license = "Apache-2.0"
+repository = "https://github.com/SuperInstance/oxide-compile-cache"
